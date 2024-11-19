@@ -12,6 +12,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import com.sdavis.styletransfer.ui.theme.StyletransferTheme
 import com.google.android.filament.utils.*
 import java.nio.ByteBuffer
+import kotlin.math.sin
 
 class MainActivity : Activity() {
 
@@ -31,8 +32,17 @@ class MainActivity : Activity() {
         modelViewer = ModelViewer(surfaceView)
         surfaceView.setOnTouchListener(modelViewer)
 
-        loadGlb("DamagedHelmet")
+        loadGltf("BusterDrone")
         loadEnvironment("venetian_crossroads_2k")
+    }
+
+    private fun loadGltf(name: String) {
+        val tcm = modelViewer.engine.transformManager
+
+        val buffer = readAsset("models/${name}.gltf")
+        modelViewer.loadModelGltf(buffer) { uri -> readAsset("models/$uri") }
+        modelViewer.transformToUnitCube()
+
     }
 
     private fun loadGlb(name: String) {
@@ -64,9 +74,37 @@ class MainActivity : Activity() {
     }
 
     private val frameCallback = object : Choreographer.FrameCallback {
-        override fun doFrame(currentTime: Long) {
+        private val startTime = System.nanoTime()
+        override fun doFrame(frameTimeNanos : Long) {
             choreographer.postFrameCallback(this)
-            modelViewer.render(currentTime)
+
+            val elapsedTimeSeconds = (frameTimeNanos - startTime).toDouble() / 1_000_000_000
+            val tcm = modelViewer.engine.transformManager
+
+            val asset = modelViewer.asset!!
+            for(entityId in asset.entities)
+            {
+               val name =  asset.getName(entityId)
+                if(name == "Drone_Turb_M_L_body_0")
+                {
+                    val boneTransformComponent = tcm.getInstance(entityId)
+                    val transform = rotation(Float3(1.0f,0.0f,0.0f), sin
+                        (elapsedTimeSeconds.toFloat()) * 20)
+                    tcm.setTransform(boneTransformComponent, transpose(transform).toFloatArray())
+                }
+
+                if(name == "Drone_Turb_M_R_body_0")
+                {
+                    val boneTransformComponent = tcm.getInstance(entityId)
+                    val transform = rotation(Float3(0.0f,1.0f,0.0f), sin
+                        (elapsedTimeSeconds.toFloat()) * 20)
+                    tcm.setTransform(boneTransformComponent, transpose(transform).toFloatArray())
+                }
+            }
+
+            modelViewer.animator?.updateBoneMatrices()
+
+            modelViewer.render(frameTimeNanos)
         }
     }
 
